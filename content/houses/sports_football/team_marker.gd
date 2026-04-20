@@ -1,11 +1,13 @@
 extends Spatial
 
 const NetworkConst := preload("res://content/network/network_const.gd")
+const RewardItemsConst := preload("res://content/ui/reward_items/reward_items_const.gd")
 
 const PLAYER = preload("res://content/character/character_v2.gd")
 const PLAYER_NETWORK = preload("res://content/character/player_network.gd")
 
 onready var _sprite_mark := $SpriteMarker
+onready var _marker := $"%Marker" as Spatial
 
 enum COLOR_TEAM {
 	RED,
@@ -54,11 +56,28 @@ func _process(_delta: float) -> void:
 	
 	if player is PLAYER:
 		global_position = player.get_character().global_position
+		
+		var node := get_tree().get_first_node_in_group("MP_BALL")
+		if node :
+			var ball := node as Spatial
+			var to := ball.global_position as Vector3
+			
+			var distance := ball.global_position.distance_to(global_position)
+			if distance > 1.0 :
+				to.y = _marker.global_position.y
+				_marker.visible = true
+				_marker.look_at(to, Vector3.UP)
+			else :
+				_marker.visible = false
+		else :
+			_marker.visible = false
+		
 	elif player is PLAYER_NETWORK:
 		global_position = player.get_pos_network_player()
 	else:
 		global_position = player.global_position
-
+	
+	
 
 func is_player() -> bool :
 	return player is PLAYER
@@ -73,7 +92,15 @@ func set_side_team(color: int) -> void :
 	_sprite_mark.modulate = _color_mark.get(color, Color.yellow)
 	_sprite_mark.modulate.a = 0.5
 	
+	if player and player.has_method("wear_clothes_override") :
+		if color == COLOR_TEAM.RED :
+			player.wear_clothes_override(RewardItemsConst.FOOTBALL_RED)
+		else :
+			player.wear_clothes_override(RewardItemsConst.FOOTBALL_BLUE)
+	
 	send_color()
+
+
 
 func send_color() -> void :
 	if not is_player():

@@ -226,3 +226,4 @@ func init_singletones() -> void :
 	QueueCall.push_call(self, "get_RateMe")
 	Logger.log_i(self, " RateMe inited")
 
+ 

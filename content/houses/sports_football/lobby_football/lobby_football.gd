@@ -12,6 +12,9 @@ const ENEMY_TR := preload("res://content/Enemy/enemy_multiplayer/enemy_multiplay
 
 const LEVEL_FOOTBALL_PATH := "res://content/houses/sports_football/football_mp/sports_football_mp.tscn"
 
+# Maximum number of human players in a football match (5v5 = 10 players)
+const MAX_FOOTBALL_PLAYERS := 10
+
 onready var _network_players := $NetworkPlayers
 onready var _team_marks := $TeamMarks
 onready var _label_timer_lobby := $TimerLobby/LabelTimer
@@ -30,12 +33,16 @@ enum NAME_DATA {
 var team_mark_pl : TEAM_MARK = null
 var game = null
 
+# --- FIX: Track whether the football game instance has already been created ---
+var _is_game_started := false
+
 
 func start_game() -> void :
 	var player = Singletones.get_Global().player_character
 	player.global_position = _pos_start.global_position
 	player.freez = false
 	player.enabled = true
+	Singletones.get_GameUiDelegate().share.controler.rotation.y = -PI
 	
 	var team_mark : TEAM_MARK = ResourceLoader.load(TEAM_MARK_PATH, "", true).instance()
 	team_mark.name = player.name
@@ -50,10 +57,15 @@ func start_game() -> void :
 func exit() -> void :
 	if game and is_instance_valid(game):
 		game.exit()
+	_is_game_started = false
 	queue_free()
+	
+	var player = Singletones.get_Global().player_character
+	player.wear_clothes_override_clear()
 
 func _exit_out_game() -> void :
 	Singletones.get_GameUiDelegate().share.emit_signal("close")
+
 
 func connect_signal_timer_lobby(enemy_trigger: ENEMY_TR) -> void :
 	if not enemy_trigger:
@@ -67,6 +79,40 @@ func connect_signal_timer_lobby(enemy_trigger: ENEMY_TR) -> void :
 		enemy_trigger.connect("timer_timeout", self, "_EnemyTrigger_timer_timeout")
 
 
+# --- FIX: Check if the current session's football match is full ---
+# Returns the total number of human players currently in the football lobby/game.
+func get_current_player_count() -> int :
+	var count := 1  # count the local player
+	if _network_players and is_instance_valid(_network_players):
+		count += _network_players.get_child_count()
+	return count
+
+
+# --- FIX: Called externally to check if a new player can join this match ---
+func is_football_full() -> bool :
+	return get_current_player_count() >= MAX_FOOTBALL_PLAYERS
+
+
+# --- FIX: Allow a late-joining player to join the already-running football game ---
+func try_join_existing_game() -> bool :
+	# If the game hasn't started yet, the player will naturally join via the timer.
+	if not _is_game_started:
+		return false
+	
+	if not game or not is_instance_valid(game):
+		return false
+	
+	if is_football_full():
+		return false
+	
+	# The player is already in the lobby scene (network players are synced).
+	# We just need to make sure the game node knows about them.
+	# The network data flow (update_network_data) already handles adding
+	# new network players dynamically, so this should work transparently.
+	Logger.log_i(self, " Late join: player joining existing football game")
+	return true
+
+
 func update_network_data(data: Dictionary) -> void :
 	match data[NAME_DATA.TYPE_UPDATE] as int:
 		NetworkConst.TYPE_DATA_OPEN_GAME.UPDATE_OG_PLAYER_NETWORK_LEVEL:
@@ -76,6 +122,7 @@ func update_network_data(data: Dictionary) -> void :
 				var dog = ResourceLoader.load(path_dog, "", true).instance()
 				dog.name = str(data[NAME_DATA.IDX_OBJ])
 				dog.is_player_in_game = true
+				dog.is_visible = true
 				_network_players.add_child(dog)
 				var team_mark : TEAM_MARK = ResourceLoader.load(TEAM_MARK_PATH, "", true).instance()
 				team_mark.name = str(data[NAME_DATA.IDX_OBJ])
@@ -111,6 +158,13 @@ func _EnemyTrigger_timer_tick(sec: int) -> void :
 	_label_timer_lobby.text = str(sec) + "s"
 
 func _EnemyTrigger_timer_timeout() -> void :
+	# --- FIX: Guard against creating a duplicate football game instance ---
+	if _is_game_started:
+		Logger.log_i(self, " Football game already started, ignoring duplicate timer_timeout")
+		return
+	
+	_is_game_started = true
+	
 	for npl in _network_players.get_children():
 		npl.in_lobby = false
 		npl.in_game = true

@@ -2,6 +2,8 @@ extends KinematicBody
 
 const NetworkConst := preload("res://content/network/network_const.gd")
 const CharacterAnimation := preload("res://resources/models/character_v2/character_animation_v3.gd")
+const CharacterConsts := preload("res://content/character/characters_consts.gd")
+const RewardItemsConst := preload("res://content/ui/reward_items/reward_items_const.gd")
 const FCM := preload("res://content/fcm/fcm.gd")
 
 const BALL_MP := preload("res://content/houses/sports_football/football_mp/ball_mp.gd")
@@ -21,11 +23,17 @@ func set_is_friend(turn: bool) -> void :
 	is_friend = turn
 	if _trap_ball:
 		_trap_ball.is_friend = turn
+	if _character :
+		if turn :
+			_character.wear_clothes_override(RewardItemsConst.FOOTBALL_RED)
+		else :
+			_character.wear_clothes_override(RewardItemsConst.FOOTBALL_BLUE)
 	if _team_mark:
 		if turn:
 			_team_mark.set_side_team(_team_mark.COLOR_TEAM.RED)
 		else:
 			_team_mark.set_side_team(_team_mark.COLOR_TEAM.BLUE)
+		
 
 onready var _instance_placeholder : InstancePlaceholder = $Character
 var _character: CharacterAnimation = null
@@ -37,6 +45,7 @@ onready var _ray_pass_to_player := $RayPassToPlayer
 onready var _ray_goal := $RayGoal
 onready var _team_mark := $TeamMarker
 onready var _timer_update_network := $TimerUpdateNetwork
+onready var _player_name := $"%NamePlayer"
 
 var _ball : RigidBody = null
 var _gate : Position3D = null
@@ -47,7 +56,7 @@ var _target : Spatial = null
 var _direction := Vector3.ZERO
 var _rotation := 0.0
 var _speed_rotation := 4.0
-var _speed_linear := 3.0
+var _speed_linear := 3.0 * 1.5
 var _velocity := Vector3.ZERO
 
 var _rot_target_net := 0.0
@@ -132,6 +141,11 @@ func _ready() -> void:
 	_trap_ball.set_game()
 	
 	get_tree().create_timer(randf() + 0.1).connect("timeout", self, "_start_timer")
+	
+	if _player_name :
+		_player_name.set_premium(false)
+		_player_name.set_name(CharacterConsts.BotNames.pick_random())
+		_player_name.set_level(randi() % 5)
 
 func _start_timer() -> void :
 	_timer_update_network.start()
@@ -245,6 +259,13 @@ func change_skin(path_pkg: String) -> void :
 		Logger.log_i(self, " instance PH BEGIN ", Time.get_ticks_msec(), " ", Engine.get_idle_frames())
 		_character = _instance_placeholder.create_instance(false, ResourceLoader.load(path_pkg, "", true))
 		Logger.log_i(self, " instance PH END ", Time.get_ticks_msec(), " ", Engine.get_idle_frames())
+	
+	
+	if _character :
+		if is_friend :
+			_character.wear_clothes_override(RewardItemsConst.FOOTBALL_RED)
+		else :
+			_character.wear_clothes_override(RewardItemsConst.FOOTBALL_BLUE)
 
 func update_reward_items(clothes: Array = []) -> void :
 	if _character:
@@ -274,7 +295,7 @@ func set_target(target: Spatial) -> void:
 	_target = target
 
 func go_to_ball() -> void :
-	if not _is_ball_traped:
+	if not _is_ball_traped and is_inside_tree() :
 		_timer_to_ball = get_tree().create_timer(5.0)
 		_timer_to_ball.connect("timeout", self, "_timer_to_ball_timeout")
 		_is_go_to_ball = true
@@ -295,6 +316,8 @@ func get_area_trap_ball() -> Area :
 
 func _timer_to_ball_timeout() -> void :
 	_is_go_to_ball = false
+	if _is_playing and not _is_ball_traped and _target == null:
+		_target = _ball
 
 func _set_direction() -> void :
 	if not _target:
@@ -319,12 +342,18 @@ func _set_direction() -> void :
 				nom = i
 				break
 			else:
-				if not (_is_ball_traped and areas[i].get_parent().is_friend == is_friend):
-					var dist_to_area : float = (global_transform.origin - areas[i].global_transform.origin).length()
-					if dist_to_area < distance:
-						distance = dist_to_area
-						nom = i
-		if nom >=0:
+				if i < areas.size() :
+					if areas[i] and is_instance_valid(areas[i]) :
+						if areas[i].get_parent() and is_instance_valid(areas[i].get_parent()) :
+							if "is_friend" in areas[i].get_parent() :
+								#Logger.log_e(self, " is friend not found in ", str(areas[i].get_parent()))
+								
+								if not (_is_ball_traped and areas[i].get_parent().is_friend == is_friend):
+									var dist_to_area : float = (global_transform.origin - areas[i].global_transform.origin).length()
+									if dist_to_area < distance:
+										distance = dist_to_area
+										nom = i
+		if nom >= 0:
 			if areas[nom].is_in_group("AREA_WALLS"):
 				direct = -global_transform.origin + areas[nom].global_transform.origin
 			else:
@@ -424,3 +453,12 @@ func _on_VisibilityEnabler_screen_entered():
 
 func _on_TimerUpdateNetwork_timeout() -> void:
 	send_move_bot()
+
+
+func wear_clothes_override(override: Array) -> void :
+	if _character :
+		_character.wear_clothes_override(override)
+
+func wear_clothes_override_clear() -> void :
+	if _character :
+		_character.wear_clothes_override_clear()

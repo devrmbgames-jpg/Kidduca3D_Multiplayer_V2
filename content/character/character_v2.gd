@@ -331,7 +331,7 @@ func _physics_process_apply_velocity(_delta: float) -> void :
 			FCM.WALK:
 				v = Vector3.BACK * 0.455
 			FCM.RUN:
-				v = Vector3.BACK * 1.883
+				v = Vector3.BACK * 1.883 * 1.5
 			FCM.JUMP_FORWARD:
 				v = Vector3(0.0, 1.883, 1.883)
 #			FCM.JUMP:
@@ -784,7 +784,11 @@ func _on_TimerNetwork_timeout() -> void:
 		_send_all_data()
 
 
+func wear_clothes_override(override: Array) -> void :
+	if _character :
+		_character.wear_clothes_override(override)
 
-
-
+func wear_clothes_override_clear() -> void :
+	if _character :
+		_character.wear_clothes_override_clear()
 

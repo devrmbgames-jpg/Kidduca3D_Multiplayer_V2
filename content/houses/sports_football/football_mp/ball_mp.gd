@@ -14,6 +14,9 @@ func set_is_player(turn: bool) -> void :
 		linear_velocity = Vector3.ZERO
 		angular_velocity = Vector3.ZERO
 		mode = RigidBody.MODE_RIGID
+		sleeping = false
+		_target_pos = Vector3.ZERO
+		_target_ang_vel = Vector3.ZERO
 	else:
 		linear_velocity = Vector3.ZERO
 		angular_velocity = Vector3.ZERO
@@ -21,6 +24,9 @@ func set_is_player(turn: bool) -> void :
 	
 	if turn:
 		send_is_player()
+
+
+
 
 
 var can_trap := true
@@ -126,6 +132,19 @@ func send_is_player() -> void :
 	Singletones.get_Network().api.send_data_to_all()
 	
 
+
+# Called by the new host after takeover. Repeats the ownership broadcast
+# a few times over 1.5s so packet loss during host migration can't leave
+# the ball in STATIC mode on remaining clients.
+func force_broadcast_ownership() -> void :
+	for i in 3:
+		if not is_player:
+			return
+		send_is_player()
+		yield(get_tree().create_timer(0.5), "timeout")
+		if not is_inside_tree() or is_queued_for_deletion():
+			return
+
 func update_network_data(data: Dictionary) -> void :
 	match data[NAME_DATA.TYPE] as int:
 		TYPE_DATA.MOVE_BALL:
@@ -134,6 +153,12 @@ func update_network_data(data: Dictionary) -> void :
 				_target_pos = Vector3(pos_arr[0], pos_arr[1], pos_arr[2])
 				_target_ang_vel = Vector3(pos_arr[3], pos_arr[4], pos_arr[5])
 		TYPE_DATA.IS_PLAYER:
+#			_target_pos = global_position
+#			_target_ang_vel = angular_velocity
+#			set_is_player(false)
+			
+			if is_player and data.get(NAME_DATA.IS_PLAYER, false):
+				return
 			_target_pos = global_position
 			_target_ang_vel = angular_velocity
 			set_is_player(false)

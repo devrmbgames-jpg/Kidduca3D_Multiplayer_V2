@@ -19,8 +19,6 @@ func load_tokens_and_init():
 	lobby = LOBBY_PKG.instance()
 	add_child(lobby)
 	
-	lobby_football = LOBBY_FOOTBALL_PKG.instance()
-	add_child(lobby_football)
 	
 	Logger.log_i(self, " create api")
 	api = load("res://content/network/network_bridge_nakama.gd").new()

@@ -14,5 +14,6 @@ func set_texture(tex: Texture) -> void :
 	_shape.texture = tex
 
 func set_texture_and_show(tex: Texture) -> void :
-	set_texture(tex)
-	show_shape()
+	if visible == false or _shape.texture != tex :
+		set_texture(tex)
+		show_shape()

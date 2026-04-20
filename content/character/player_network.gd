@@ -61,6 +61,7 @@ const SPEED_ROTATE_BOT := 4.0
 const SPEED_LIN := 4.7
 
 var name_pl := ""
+var peer_id := ""
 var clothes := []
 var idx_character := 0
 var num_world := 0
@@ -97,10 +98,11 @@ var _tick_prev_pos := 0
 
 
 func _ready() -> void:
-	#visible = false
-	visible = true
+	visible = false
 	
 	change_pkg()
+	
+	call_deferred("_setup_visible")
 
 
 func change_pkg() -> void:
@@ -115,14 +117,20 @@ func change_pkg() -> void:
 		return
 	Logger.log_i(self, " Change pkg, idx character - ", idx_character)
 	#var trans_player : Transform = Transform.IDENTITY
+	
+	var override := []
+	
 	if _character and is_instance_valid(_character):
 		#trans_player = _character.global_transform
 		print(self, " Change pkg queue free")
+		override = _character.override_clothes
 		_character.queue_free()
 	
 	var path_char : String = CharacterConst.get_character_path(idx_character)
 	var character_pkg: PackedScene = ResourceLoader.load(path_char, "", false) as PackedScene
 	_character = _instance_placeholder.create_instance(false, character_pkg)
+	if _character :
+		_character.override_clothes = override
 	
 	print(self, " Change pkg - ", _character)
 	
@@ -208,9 +216,12 @@ func _process(delta: float) -> void:
 
 
 func _setup_visible() -> void :
-	var _current_num_world : int = Singletones.get_GameSaveCloud().game_state.world_num
-	#visible = ((not in_game) and (not in_lobby) and (num_world == current_num_world) and is_visible)
-	visible = true
+	var current_num_world : int = Singletones.get_GameSaveCloud().game_state.world_num
+	if is_player_in_game :
+		visible = true
+	else :
+		visible = ((not in_game) and (not in_lobby) and (num_world == current_num_world) and is_visible)
+	#visible = true
 
 
 func _update_all_data(
@@ -241,7 +252,10 @@ func update_name_player(name_pl_new: String) -> void :
 	_name_player.set_name(name_pl_new)
 
 func update_idx_character(idx_char_new: int) -> void :
-	#Logger.log_i(self, " Update idx character - ", idx_char_new)
+	if idx_character == idx_char_new and _character and is_instance_valid(_character):
+		return
+	
+	Logger.log_i(self, " Update idx character - ", idx_char_new)
 	idx_character = idx_char_new
 	change_pkg()
 
@@ -262,6 +276,8 @@ func update_num_world(num_world_new: int) -> void :
 func update_in_game(in_game_in: bool) -> void :
 	#Logger.log_i(self, " Update in game - ", in_game_in)
 	in_game = in_game_in
+#	if in_game_in == false :
+#		wear_clothes_override_clear()
 	_setup_visible()
 
 func update_level(level_achiv: float) -> void :
@@ -411,3 +427,10 @@ func _on_TimerDespawnBot_timeout() -> void:
 
 
 
+func wear_clothes_override(override: Array) -> void :
+	if _character :
+		_character.wear_clothes_override(override)
+
+func wear_clothes_override_clear() -> void :
+	if _character :
+		_character.wear_clothes_override_clear()
